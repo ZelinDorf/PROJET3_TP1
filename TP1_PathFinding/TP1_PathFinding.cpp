@@ -13,7 +13,7 @@
 #define MAGENTA "\033[35m"
 
 
-struct GridCoord
+struct GridCoord//pas faire 2 update...
 {
     int row;
     int col;
@@ -81,10 +81,14 @@ void UpdateGrid(std::vector<std::vector<const char*>>& grid, std::vector<GridCoo
 
             else if (tempCoord == player)
                 grid[i][j] = "\033[35m|O|\033[0m";
-            else if (grid[i][j] == "|P|")
-                grid[i][j] = "|P|";
             else
                 grid[i][j] = "| |";
+
+            for (GridCoord coords : pathCoords)
+            {
+                if (tempCoord == coords)
+                    grid[i][j] = "\033[32m|P|\033[0m";
+            }
         }
     }
 
@@ -144,60 +148,45 @@ void Move(std::vector<std::vector<const char*>>& grid, std::vector<GridCoord>& p
 
     if (input == 'a')
         GoToCursor(grid, pathCoords, data.mCursor, data.mPlayer);
-}
 
-void PathUpdate(std::vector<std::vector<const char*>>& grid, std::vector<GridCoord>& pathCoords, GridCoord& cursor, GridCoord& player);
+    if (input == 'e')
+        player = cursor;
+}
 
 void GoToCursor(std::vector<std::vector<const char*>>& grid, std::vector<GridCoord>& pathCoords, GridCoord& cursor, GridCoord& player)
 {
     int colDist = abs(player.col - cursor.col);
     int rowDist = abs(player.row - cursor.row);
 
-    pathCoords.resize(0);    
+    pathCoords.resize(0);  
 
     for (size_t i = 1; i <= colDist; i++)
     {
-        GridCoord temp = {player.row, player.col - i};
+        GridCoord temp;
+
+        if (player.col > cursor.col)
+            temp = { player.row, (int)(player.col - i) };
+
+        if (player.col < cursor.col)
+            temp = { player.row, (int)(player.col + i) };
+
         pathCoords.push_back(temp);
     }
 
     for (size_t j = 1; j < rowDist; j++)
     {
-        GridCoord temp = { player.row - j, pathCoords.back().col};
+        GridCoord temp;
+
+        if (player.row > cursor.row)
+            temp = { (int)(player.row - j), pathCoords.back().col };
+
+        if (player.row < cursor.row)
+            temp = { (int)(player.row + j), pathCoords.back().col };
+
         pathCoords.push_back(temp);
     }
 
-    PathUpdate(grid, pathCoords, cursor, player);
-}
-
-void PathUpdate(std::vector<std::vector<const char*>>& grid, std::vector<GridCoord>& pathCoords, GridCoord& cursor, GridCoord& player)
-{
-    system("cls");
-
-    for (size_t i = 0; i < HEIGHT; i++)
-    {
-        for (size_t j = 0; j < WIDTH; j++)
-        {
-            GridCoord tempCoord{ i,j };
-
-
-            if (tempCoord == cursor)
-                grid[i][j] = "\033[31m|+|\033[0m";
-
-            else if (tempCoord == player)
-                grid[i][j] = "\033[35m|O|\033[0m";
-            else
-                grid[i][j] = "| |";
-
-            for (GridCoord coords : pathCoords)
-            {
-                if (tempCoord == coords)
-                    grid[i][j] = "\033[32m|P|\033[0m";
-            }
-        }
-    }
-
-    PrintGrid(grid);
+    UpdateGrid(grid, pathCoords, cursor, player);
 }
 
 int main()
