@@ -137,7 +137,7 @@ void PathFinding(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& o
 void Move(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& obstacles)
 {
     int input = _getch();
-    GridData data{ player, cursor };
+    GridData data{ player, cursor , obstacles};
 
     if (input == 'z')
     {
@@ -190,6 +190,14 @@ void Move(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& obstacle
         player = cursor;
 }
 
+void ObstacleAvoiding(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& obstacles)
+{
+    for (GridCoord co : obstacles)
+    {
+        
+    }
+}
+
 void PathFinding(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& obstacles)
 {
     int colDist = abs(player.col - cursor.col);
@@ -199,7 +207,7 @@ void PathFinding(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& o
 
     for (size_t i = 1; i <= colDist; i++)
     {
-        GridCoord temp;
+        GridCoord temp{ 0, 0 };
 
         if (player.col > cursor.col)
             temp = { player.row, (int)(player.col - i) };
@@ -207,12 +215,16 @@ void PathFinding(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& o
         if (player.col < cursor.col)
             temp = { player.row, (int)(player.col + i) };
 
-        pathCoords.push_back(temp);
+        if (IsObstacle(temp, obstacles))
+            ObstacleAvoiding(cursor, player, obstacles);
+        else
+            pathCoords.push_back(temp);
+
     }
 
     for (size_t j = 1; j < rowDist; j++)
     {
-        GridCoord temp;
+        GridCoord temp{ 0, 0 };
 
         if (pathCoords.size() > 0)
         {
@@ -232,7 +244,10 @@ void PathFinding(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& o
         }
 
 
-        pathCoords.push_back(temp);
+        if (IsObstacle(temp, obstacles))
+            ObstacleAvoiding(cursor, player, obstacles);
+        else
+            pathCoords.push_back(temp);
     }
 
     UpdateGrid(cursor, player, obstacles);
