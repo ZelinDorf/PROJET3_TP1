@@ -1,6 +1,8 @@
 #include <iostream>
 #include <vector>
 #include <conio.h>
+#include "stdlib.h"
+
 
 #define WIDTH 10
 #define HEIGHT 10
@@ -11,6 +13,7 @@
 #define GREEN   "\033[32m"
 #define RED     "\033[31m"
 #define MAGENTA "\033[35m"
+#define BLUE    "\033[34m"
 
 
 struct GridCoord//pas faire 2 update...
@@ -28,10 +31,29 @@ struct GridData
 {
     GridCoord mPlayer;
     GridCoord mCursor;
+
+    std::vector<GridCoord> obstacles;
 };
  
 
-void InitGrid(std::vector<std::vector<const char*>>& grid, GridCoord& cursor, GridCoord& player)
+std::vector<std::vector<const char*>> grid;
+
+std::vector<GridCoord> pathCoords;
+
+
+
+int GenerateRandomNumber(int min, int max)
+{
+    int range = max - min;
+
+    int value = rand() % range + min;
+
+    return value;
+}
+
+bool IsObstacle(GridCoord coord, std::vector<GridCoord>& pObstacle);
+
+void InitGrid(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& obstacles)
 {
     for (size_t i = 0; i < HEIGHT; i++)
     {
@@ -43,7 +65,8 @@ void InitGrid(std::vector<std::vector<const char*>>& grid, GridCoord& cursor, Gr
 
             if (tempCoord == cursor)
                 temp.push_back("\033[31m|+|\033[0m");
-
+            else if (IsObstacle(tempCoord, obstacles))
+                temp.push_back("\033[34m|#|\033[0m");
             else if (tempCoord == player)
                 temp.push_back("\033[35m|O|\033[0m");
             else
@@ -54,7 +77,19 @@ void InitGrid(std::vector<std::vector<const char*>>& grid, GridCoord& cursor, Gr
     }
 }
 
-void PrintGrid(std::vector<std::vector<const char*>>& grid)
+bool IsObstacle(GridCoord coord, std::vector<GridCoord>& pObstacle)
+{
+    for (int k = 0; k < pObstacle.size(); k++)
+    {
+        if (coord == pObstacle[k])
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void PrintGrid()
 {
     for (size_t i = 0; i < grid.size(); i++)
     {
@@ -66,7 +101,7 @@ void PrintGrid(std::vector<std::vector<const char*>>& grid)
     }
 }
 
-void UpdateGrid(std::vector<std::vector<const char*>>& grid, std::vector<GridCoord>& pathCoords, GridCoord& cursor, GridCoord& player)
+void UpdateGrid(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& obstacles)
 {
     system("cls");
 
@@ -77,8 +112,7 @@ void UpdateGrid(std::vector<std::vector<const char*>>& grid, std::vector<GridCoo
             GridCoord tempCoord{ i,j };
 
             if (tempCoord == cursor)
-                grid[i][j] = "\033[31m|+|\033[0m";
-
+                grid[i][j] = "\033[31m|+|\033[0m"; 
             else if (tempCoord == player)
                 grid[i][j] = "\033[35m|O|\033[0m";
             else
@@ -89,15 +123,18 @@ void UpdateGrid(std::vector<std::vector<const char*>>& grid, std::vector<GridCoo
                 if (tempCoord == coords)
                     grid[i][j] = "\033[32m|P|\033[0m";
             }
+            
+            if (IsObstacle(tempCoord, obstacles))
+                grid[i][j] = "\033[34m|#|\033[0m";
         }
     }
 
-    PrintGrid(grid);
+    PrintGrid();
 }
 
-void GoToCursor(std::vector<std::vector<const char*>>& grid, std::vector<GridCoord>& pathCoords, GridCoord& cursor, GridCoord& player);
+void PathFinding(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& obstacles);
 
-void Move(std::vector<std::vector<const char*>>& grid, std::vector<GridCoord>& pathCoords, GridCoord& cursor, GridCoord& player)
+void Move(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& obstacles)
 {
     int input = _getch();
     GridData data{ player, cursor };
@@ -109,7 +146,7 @@ void Move(std::vector<std::vector<const char*>>& grid, std::vector<GridCoord>& p
         if (cursor.row <= 0)
             cursor.row = 0;
 
-        if (cursor == player)
+        if (cursor == player || IsObstacle(cursor, obstacles))
             cursor.row++;
     }
 
@@ -120,7 +157,7 @@ void Move(std::vector<std::vector<const char*>>& grid, std::vector<GridCoord>& p
         if (cursor.row >= HEIGHT)
             cursor.row = HEIGHT - 1;
 
-        if (cursor == player)
+        if (cursor == player || IsObstacle(cursor, obstacles))
             cursor.row--;
     }
 
@@ -131,7 +168,7 @@ void Move(std::vector<std::vector<const char*>>& grid, std::vector<GridCoord>& p
         if (cursor.col <= 0)
             cursor.col = 0;
 
-        if (cursor == player)
+        if (cursor == player || IsObstacle(cursor, obstacles))
             cursor.col++;
     }
 
@@ -142,18 +179,18 @@ void Move(std::vector<std::vector<const char*>>& grid, std::vector<GridCoord>& p
         if (cursor.col >= WIDTH)
             cursor.col = WIDTH - 1;
 
-        if (cursor == player)
+        if (cursor == player || IsObstacle(cursor, obstacles))
             cursor.col--;
     }
 
     if (input == 'a')
-        GoToCursor(grid, pathCoords, data.mCursor, data.mPlayer);
+        PathFinding(data.mCursor, data.mPlayer, data.obstacles);
 
     if (input == 'e')
         player = cursor;
 }
 
-void GoToCursor(std::vector<std::vector<const char*>>& grid, std::vector<GridCoord>& pathCoords, GridCoord& cursor, GridCoord& player)
+void PathFinding(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& obstacles)
 {
     int colDist = abs(player.col - cursor.col);
     int rowDist = abs(player.row - cursor.row);
@@ -177,38 +214,62 @@ void GoToCursor(std::vector<std::vector<const char*>>& grid, std::vector<GridCoo
     {
         GridCoord temp;
 
-        if (player.row > cursor.row)
-            temp = { (int)(player.row - j), pathCoords.back().col };
+        if (pathCoords.size() > 0)
+        {
+            if (player.row > cursor.row)
+                temp = { (int)(player.row - j), pathCoords.back().col };
 
-        if (player.row < cursor.row)
-            temp = { (int)(player.row + j), pathCoords.back().col };
+            if (player.row < cursor.row)
+                temp = { (int)(player.row + j), pathCoords.back().col };
+        }
+        else
+        {
+            if (player.row > cursor.row)
+                temp = { (int)(player.row - j), player.col };
+
+            if (player.row < cursor.row)
+                temp = { (int)(player.row + j), player.col };
+        }
+
 
         pathCoords.push_back(temp);
     }
 
-    UpdateGrid(grid, pathCoords, cursor, player);
+    UpdateGrid(cursor, player, obstacles);
 }
 
 int main()
 {
+    srand(time(NULL));
+
+
     GridData data;
 
     data.mPlayer = { HEIGHT - 1, WIDTH - 1 };
     data.mCursor = { 0, 0 };
 
-    std::vector<std::vector<const char*>> vGrid;
+    for (size_t i = 0; i < WIDTH; i++)
+    {
+        GridCoord obsCoord;
 
-    std::vector<GridCoord> pathCoords;
+        int row = GenerateRandomNumber(1, WIDTH - 1);
+        int col = GenerateRandomNumber(1, HEIGHT - 1);
+
+        obsCoord = { row, col };
+
+        data.obstacles.push_back(obsCoord);
+    }
+
 
     bool open = true;
 
-    InitGrid(vGrid, data.mCursor, data.mPlayer);
-    UpdateGrid(vGrid, pathCoords, data.mCursor, data.mPlayer);
+    InitGrid(data.mCursor, data.mPlayer, data.obstacles);
+    UpdateGrid(data.mCursor, data.mPlayer, data.obstacles);
 
     while (open)
     {
-        UpdateGrid(vGrid, pathCoords, data.mCursor, data.mPlayer);
+        UpdateGrid(data.mCursor, data.mPlayer, data.obstacles);
 
-        Move(vGrid, pathCoords, data.mCursor, data.mPlayer);
+        Move(data.mCursor, data.mPlayer, data.obstacles);
     }
 }
