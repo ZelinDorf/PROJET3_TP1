@@ -4,18 +4,19 @@
 #include "stdlib.h"
 
 
-#define WIDTH 10
-#define HEIGHT 10
+#define WIDTH 15
+#define HEIGHT 15
 #define OBSTACLE_NB 15
 
 // Codes ANSI pour les couleurs
 
-#define CURSOR      "\033[31m|+|\033[0m"
-#define PLAYER      "\033[35m|O|\033[0m"
-#define PATH        "\033[32m|P|\033[0m"
-#define OBSTACLE    "\033[34m|#|\033[0m"
-#define VISITED     "\033[37m|V|\033[0m"
-#define EMPTY       "| |"
+#define CURSOR          "\033[33m|+|\033[0m"
+#define BLOCKED_CURSOR  "\033[31m|+|\033[0m"
+#define PLAYER          "\033[35m|O|\033[0m"
+#define PATH            "\033[32m|P|\033[0m"
+#define OBSTACLE        "\033[34m|#|\033[0m"
+#define VISITED         "\033[36m|V|\033[0m"
+#define EMPTY           "| |"
 
 
 struct GridCoord//pas faire 2 update...
@@ -44,14 +45,24 @@ struct Tile
     bool walkable = true;
     bool isVisited = false;
 
+    int costFromStart = 0;
+    int totalCost = 0;
+
     Tile* cameFrom = nullptr;
 };
 
 
+
+//list and public
 std::vector<std::vector<const char*>> grid;
 
 std::vector<std::vector<Tile>> tiles;
 
+bool open = true;
+
+
+
+//fonctions
 int GenerateRandomNumber(int min, int max)
 {
     int range = max - min;
@@ -255,6 +266,10 @@ void Move(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& obstacle
         PathFinding(cursor, player, obstacles, true);
     else
         PathFinding(cursor, player, obstacles, false);
+
+    if (input == '\t')
+        open = false;
+
 }
 
 void DrawPath(GridCoord& posCurseur)
@@ -275,15 +290,50 @@ void DrawPath(GridCoord& posCurseur)
     }
 }
 
+void AddToPrioQueue(Tile* add, std::vector<Tile*>& queue)
+{
+    if (queue.size() == 0)
+    {
+        queue.push_back(add);
+        return;
+    }
+
+    for (size_t i = 0; i < queue.size(); i++)
+    {
+        if (add->totalCost < queue[i]->totalCost)
+        {
+            queue.insert(queue.begin() + i, add);
+            return;
+        }
+        else if (add->totalCost == queue[i]->totalCost)
+        {
+            if (add->costFromStart < queue[i]->costFromStart)
+            {
+                queue.insert(queue.begin() + i, add);
+                return;
+            }
+            else if (add->costFromStart > queue[i]->costFromStart)
+            {
+                queue.insert(queue.begin() + i + 1, add);
+                return;
+            }
+        }
+    }
+
+    queue.push_back(add);
+}
+
 bool FindPath(Tile* start, Tile* end)
 {
-    std::vector<Tile*> queue;
-    queue.push_back(start);
+    std::vector<Tile*> priorityQueue;
+    priorityQueue.push_back(start);
 
-    while (queue.empty() == false)
+    start->totalCost = abs(start->position.row - end->position.row) + abs(start->position.col - end->position.col);
+
+    while (priorityQueue.empty() == false)
     {
-        Tile* temp = queue[0];
-        queue.erase(queue.begin());
+        Tile* temp = priorityQueue[0];
+        priorityQueue.erase(priorityQueue.begin());
 
         if (temp->position == end->position)
             return true; // chemin trouvé
@@ -292,27 +342,33 @@ bool FindPath(Tile* start, Tile* end)
 
         //ROmain
         std::vector<Tile*> neighbours;
+        {
+            if (temp->position.col + 1 < HEIGHT)
+                neighbours.push_back(&tiles[temp->position.row][temp->position.col + 1]);
 
-        if (temp->position.col + 1 < HEIGHT)
-            neighbours.push_back(&tiles[temp->position.row][temp->position.col + 1]);
+            if (temp->position.col - 1 >= 0)
+                neighbours.push_back(&tiles[temp->position.row][temp->position.col - 1]);
 
-        if (temp->position.col - 1 >= 0)
-            neighbours.push_back(&tiles[temp->position.row][temp->position.col - 1]);
+            if (temp->position.row + 1 < WIDTH)
+                neighbours.push_back(&tiles[temp->position.row + 1][temp->position.col]);
 
-        if (temp->position.row + 1 < WIDTH)
-            neighbours.push_back(&tiles[temp->position.row + 1][temp->position.col]);
-
-        if (temp->position.row - 1 >= 0)
-            neighbours.push_back(&tiles[temp->position.row - 1][temp->position.col]);
+            if (temp->position.row - 1 >= 0)
+                neighbours.push_back(&tiles[temp->position.row - 1][temp->position.col]);
+        }
         //plus ROmain
 
         for (Tile* tile : neighbours)//boucle auto
         {
             if (tile->isVisited == false && tile->walkable)
             {
-                queue.push_back(tile);
                 tile->isVisited = true;
                 tile->cameFrom = temp;
+
+                tile->costFromStart = temp->costFromStart + 1;
+                tile->totalCost = abs(tile->position.row - end->position.row) + abs(tile->position.col - end->position.row) + tile->costFromStart;
+
+                AddToPrioQueue(tile, priorityQueue);
+
             }
         }
     }
@@ -334,7 +390,7 @@ void PathFinding(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& o
     {
         DrawPath(cursor);
 
-        if (move)//pas appellé
+        if (move)
         {
             grid[player.row][player.col] = EMPTY;
             grid[cursor.row][cursor.col] = PLAYER;
@@ -369,9 +425,6 @@ int main()
 
         data.obstacles.push_back(obsCoord);
     }
-
-
-    bool open = true;
 
     InitGrid(data.mCursor, data.mPlayer, data.obstacles);
 
