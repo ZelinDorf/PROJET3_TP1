@@ -6,14 +6,16 @@
 
 #define WIDTH 10
 #define HEIGHT 10
+#define OBSTACLE_NB 15
 
 // Codes ANSI pour les couleurs
 
-#define RESET   "\033[0m"
-#define GREEN   "\033[32m"
-#define RED     "\033[31m"
-#define MAGENTA "\033[35m"
-#define BLUE    "\033[34m"
+#define CURSOR      "\033[31m|+|\033[0m"
+#define PLAYER      "\033[35m|O|\033[0m"
+#define PATH        "\033[32m|P|\033[0m"
+#define OBSTACLE    "\033[34m|#|\033[0m"
+#define VISITED     "\033[37m|V|\033[0m"
+#define EMPTY       "| |"
 
 
 struct GridCoord//pas faire 2 update...
@@ -50,10 +52,6 @@ std::vector<std::vector<const char*>> grid;
 
 std::vector<std::vector<Tile>> tiles;
 
-std::vector<GridCoord> pathCoords;
-
-
-
 int GenerateRandomNumber(int min, int max)
 {
     int range = max - min;
@@ -81,22 +79,22 @@ void InitGrid(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& obst
             tempTile.position = tempCoord;
 
             if (tempCoord == cursor)
-                temp.push_back("\033[31m|+|\033[0m");
+                temp.push_back(CURSOR);
 
             else if (IsObstacle(tempCoord, obstacles))
             {
-                temp.push_back("\033[34m|#|\033[0m");
+                temp.push_back(OBSTACLE);
                 tempTile.walkable = false;
             }
 
             else if (tempCoord == player)
             {
-                temp.push_back("\033[35m|O|\033[0m");
+                temp.push_back(PLAYER);
                 tempTile.walkable = false;
             }
 
             else
-                temp.push_back("| |");
+                temp.push_back(EMPTY);
 
             tileTemp.push_back(tempTile);
         }
@@ -116,8 +114,8 @@ void ClearMap()
         x = 0;
         for (const char* tile : ligne)
         {
-            if (tile == "\033[32m|P|\033[0m" || tile == "\033[36m|V|\033[0m")//V = visited
-                grid[y][x] = "| |";
+            if (tile == PATH || tile == VISITED)
+                grid[y][x] = EMPTY;
             x++;
         }
         std::cout << std::endl;
@@ -129,9 +127,9 @@ void ClearMap()
 void ClearTiles()
 {
 
-    for (std::vector<Tile> tile : tiles)//boucle auto
+    for (std::vector<Tile>& tile : tiles)//boucle auto
     {
-        for (Tile temp : tile)//boucle auto
+        for (Tile& temp : tile)//boucle auto
         {
             temp.isVisited = false;
             temp.cameFrom = nullptr;
@@ -175,24 +173,28 @@ void UpdateGrid(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& ob
         {
             GridCoord tempCoord{ i,j };
 
-            grid[i][j] = "| |";
+            grid[i][j] = EMPTY;
 
             DrawPath(cursor);
 
-            for (GridCoord coords : pathCoords)
+            if (tiles[i][j].isVisited == true)
+                grid[i][j] = VISITED;
+
+            if (tiles[i][j].cameFrom != nullptr)
             {
-                if (tempCoord == coords)
-                    grid[i][j] = "\033[32m|P|\033[0m";
+                if (tempCoord == tiles[i][j].cameFrom->position)
+                    grid[i][j] = PATH;
             }
+            
 
             if (IsObstacle(tempCoord, obstacles))
-                grid[i][j] = "\033[34m|#|\033[0m";
+                grid[i][j] = OBSTACLE;
 
             if (tempCoord == player)
-                grid[i][j] = "\033[35m|O|\033[0m";
+                grid[i][j] = PLAYER;
 
             if (tempCoord == cursor)
-                grid[i][j] = "\033[31m|+|\033[0m";
+                grid[i][j] = CURSOR;
         }
     }
 
@@ -259,8 +261,6 @@ void DrawPath(GridCoord& posCurseur)
 {
     Tile tile = tiles[posCurseur.row][posCurseur.col];
 
-    pathCoords.resize(0);
-
     while (true)
     {
         Tile* nextTile = tile.cameFrom;
@@ -268,8 +268,8 @@ void DrawPath(GridCoord& posCurseur)
         if (nextTile == nullptr)
             return;
 
-        if (grid[nextTile->position.row][nextTile->position.col] != "\033[35m|O|\033[0m")
-            pathCoords.push_back({ nextTile->position.row, nextTile->position.col });
+        if (grid[nextTile->position.row][nextTile->position.col] != PLAYER)
+            grid[nextTile->position.row][nextTile->position.col] = PATH;
 
         tile = *nextTile;
     }
@@ -294,16 +294,16 @@ bool FindPath(Tile* start, Tile* end)
         std::vector<Tile*> neighbours;
 
         if (temp->position.col + 1 < HEIGHT)
-            neighbours.push_back(&tiles[temp->position.col + 1][temp->position.row]);
+            neighbours.push_back(&tiles[temp->position.row][temp->position.col + 1]);
 
         if (temp->position.col - 1 >= 0)
-            neighbours.push_back(&tiles[temp->position.col - 1][temp->position.row]);
+            neighbours.push_back(&tiles[temp->position.row][temp->position.col - 1]);
 
-        if (temp->position.row + 1 < HEIGHT)
-            neighbours.push_back(&tiles[temp->position.col][temp->position.row + 1]);
+        if (temp->position.row + 1 < WIDTH)
+            neighbours.push_back(&tiles[temp->position.row + 1][temp->position.col]);
 
         if (temp->position.row - 1 >= 0)
-            neighbours.push_back(&tiles[temp->position.col][temp->position.row - 1]);
+            neighbours.push_back(&tiles[temp->position.row - 1][temp->position.col]);
         //plus ROmain
 
         for (Tile* tile : neighbours)//boucle auto
@@ -334,10 +334,10 @@ void PathFinding(GridCoord& cursor, GridCoord& player, std::vector<GridCoord>& o
     {
         DrawPath(cursor);
 
-        if (move)
+        if (move)//pas appellé
         {
-            grid[player.row][player.col] = "| |";
-            grid[cursor.row][cursor.col] = "\033[35m|O|\033[0m";
+            grid[player.row][player.col] = EMPTY;
+            grid[cursor.row][cursor.col] = PLAYER;
 
             player = cursor;
         }
@@ -358,7 +358,7 @@ int main()
 
 
     //obstacle
-    for (size_t i = 0; i < WIDTH; i++)
+    for (size_t i = 0; i < OBSTACLE_NB; i++)
     {
         GridCoord obsCoord;
 
